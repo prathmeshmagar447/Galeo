@@ -18,6 +18,4 @@ venv/
 *.db
 instance/
 
-# Flask specific
-/static/
-/templates/
+
