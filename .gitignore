@@ -1,0 +1,21 @@
+# Byte-code files
+*.pyc
+__pycache__/
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Editor/IDE files
+.vscode/
+.idea/
+
+# Environment variables
+.env
+
+# Database files
+*.db
+instance/
+
+
