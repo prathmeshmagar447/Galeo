@@ -24,22 +24,10 @@ jobs:
           ENV: ${{ secrets.ENV }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           echo "ENV=${ENV}" >> env
           echo "EC2_USERNAME=${EC2_USERNAME}" >> env
           echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> env
-          echo "FLASK_SECRET_KEY=${FLASK_SECRET_KEY}" >> env
-          echo "DATABASE_URL=${DATABASE_URL}" >> env
-          echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}" >> env
-          echo "AWS_REGION=${AWS_REGION}" >> env
-          echo "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" >> env
-          echo "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" >> env
 
       - name: Copy files to remote server 🚙
         env:
@@ -53,7 +41,7 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
-          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "chmod +x ./deploy.sh && ./deploy.sh $EC2_USERNAME"
+          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "chmod +x ./deploy.sh && ./deploy.sh"
 
       - name: Clean up SSH key 🚀
         if: always()
