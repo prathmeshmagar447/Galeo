@@ -3,7 +3,7 @@ name: Deploy to EC2 🚀
 on:
   push:
     branches:
-      - "main" # This triggers the workflow on push to any branch
+      - "Prathmesh" # This triggers the workflow on push to any branch
 
 jobs:
   deploy:
