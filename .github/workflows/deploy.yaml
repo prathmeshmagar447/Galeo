@@ -50,7 +50,7 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
-          scp -r . $EC2_USERNAME@$EC2_HOST:/home/ubuntu/
+          tar -cz --exclude='./.git' . | ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "tar -xz -C /home/ubuntu/"
 
       - name: Run Bash Script To Deploy App 🚀
         env:
