@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+DEPLOY_USER="$1" # Get the EC2_USERNAME passed as an argument
 APP_DIR="/var/www/galeo"
 NGINX_SITE="/etc/nginx/sites-available/galeo"
 SOCKET_NAME="galeo.sock"
@@ -27,6 +28,9 @@ for item in ./* ./.??*; do
 	fi
 	sudo mv "$item" "${APP_DIR}/" || true
 done
+
+echo "Changing ownership of ${APP_DIR} to ${DEPLOY_USER}"
+sudo chown -R "${DEPLOY_USER}":"${DEPLOY_USER}" "${APP_DIR}"
 
 # Navigate to the app directory
 cd "${APP_DIR}"
