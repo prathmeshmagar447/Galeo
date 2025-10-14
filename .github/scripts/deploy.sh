@@ -37,10 +37,27 @@ pip install -r requirements.txt
 # [Install]
 # WantedBy=multi-user.target
 #
-# After creating/modifying the service file, run:
-# sudo systemctl daemon-reload
-# sudo systemctl start galeo.service
-# sudo systemctl enable galeo.service
+# Create/Update the systemd service file for Gunicorn
+sudo tee /etc/systemd/system/galeo.service > /dev/null <<EOF
+[Unit]
+Description=Gunicorn instance to serve Galeo
+After=network.target
+
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=/home/ubuntu/Galeo
+Environment="PATH=/home/ubuntu/Galeo/venv/bin"
+ExecStart=/home/ubuntu/Galeo/venv/bin/gunicorn --workers 3 --bind unix:galeo.sock -m 007 wsgi:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd, enable, and restart the service
+sudo systemctl daemon-reload
+sudo systemctl enable galeo.service
 sudo systemctl restart galeo.service
 
 echo "Deployment complete!"
