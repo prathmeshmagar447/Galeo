@@ -1,3 +1,4 @@
+
 name: Deploy Flask App to EC2
 
 on:
@@ -30,5 +31,14 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          scp -o StrictHostKeyChecking=no deploy.sh ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ubuntu/Galeo/
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "/home/ubuntu/Galeo/deploy.sh"
+          cd /home/ubuntu/Galeo
+          git pull origin main
+          echo "${{ secrets.ENV }}" > .env
+          source venv/bin/activate
+          pip install -r requirements.txt
+          # Add commands to restart your application server if needed
+          # For example, if you are using gunicorn:
+          # sudo systemctl restart gunicorn
+          # Or if you are running the app directly:
+          # pkill -f "python app.py" || true
+          # nohup python app.py &
