@@ -36,19 +36,21 @@ AWS_REGION=${{ secrets.AWS_REGION }}
 FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}
 EOF
 
-      - name: 🚚 Sync files to EC2
+      - name: 🚚 Sync files to EC2 (faster & safer)
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
+          echo "⚡ Syncing files to EC2..."
           rsync -avz --delete \
             --exclude '.git' \
             --exclude '.github' \
             --exclude 'venv' \
             --exclude '__pycache__' \
             -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
-            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/
-
+            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app
+          
+          echo "📦 Copying environment file..."
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no .env $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/env
 
       - name: 🚀 Run deploy script on EC2
@@ -56,7 +58,9 @@ EOF
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
+          echo "🧠 Running remote deploy script..."
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "
+            set -e
             cd /home/ubuntu/app
             chmod +x deploy.sh
             ./deploy.sh
