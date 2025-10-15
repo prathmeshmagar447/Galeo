@@ -1,66 +1,68 @@
-name: Deploy to EC2
+name: Deploy to EC2 🚀
 
 on:
   push:
     branches:
-      - main # or your main branch name
+      - "main" # This triggers the workflow on push to any branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout current branch ✅
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x' # Specify your Python version
+      - name: Set up SSH key and whitelist EC2 IP address 🐻‍❄️
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: Install AWS CLI
-      run: |
-        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-        unzip awscliv2.zip
-        sudo ./aws/install
+      - name: Create .env file dynamically 🧨
+        env:
+          ENV: ${{ secrets.ENV }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
+        run: |
+          echo "ENV=${ENV}" > env
+          echo "EC2_USERNAME=${EC2_USERNAME}" >> env
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> env
+          echo "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" >> env
+          echo "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" >> env
+          echo "AWS_REGION=${AWS_REGION}" >> env
+          echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}" >> env
+          echo "DATABASE_URL=${DATABASE_URL}" >> env
+          echo "EC2_HOST=${EC2_HOST}" >> env
+          echo "EC2_SSH_KEY=${EC2_SSH_KEY}" >> env
+          echo "FLASK_SECRET_KEY=${FLASK_SECRET_KEY}" >> env
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      - name: Copy files to remote server 🚙
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          # Create a temporary directory on EC2 for deployment files
+          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "mkdir -p /tmp/github-action-repo"
+          # Copy all files from the GitHub Actions runner to the temporary directory on EC2
+          scp -r * $EC2_USERNAME@$EC2_HOST:/tmp/github-action-repo/
 
-    - name: Create .env file for deployment
-      run: |
-        echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" > env
-        echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> env
-        echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> env
-        echo "AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}" >> env
-        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> env
-        echo "EC2_HOST=${{ secrets.EC2_HOST }}" >> env
-        echo "EC2_SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> env
-        echo "EC2_USERNAME=${{ secrets.EC2_USERNAME }}" >> env
-        echo "ENV=${{ secrets.ENV }}" >> env
-        echo "FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}" >> env
-        echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> env
-        # Add any other environment variables your application needs
+      - name: Run Bash Script To Delpoy App 🚀
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          # SSH into EC2, navigate to the temporary directory, and execute deploy.sh
+          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "cd /tmp/github-action-repo && chmod +x ./deploy.sh && ./deploy.sh"
 
-    - name: Deploy to EC2
-      env:
-        SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-        EC2_HOST: ${{ secrets.EC2_HOST }}
-        EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-      run: |
-        # Set up SSH agent
-        mkdir -p ~/.ssh
-        echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
-
-        # Transfer .env file and deploy.sh
-        scp -i ~/.ssh/id_rsa ./env "$EC2_USERNAME@$EC2_HOST:/home/$EC2_USERNAME/app/env"
-        scp -i ~/.ssh/id_rsa ./deploy.sh "$EC2_USERNAME@$EC2_HOST:/home/$EC2_USERNAME/app/deploy.sh"
-
-        # Execute deploy.sh on EC2
-        ssh -i ~/.ssh/id_rsa "$EC2_USERNAME@$EC2_HOST" "chmod +x /home/$EC2_USERNAME/app/deploy.sh && /home/$EC2_USERNAME/app/deploy.sh"
+      - name: Clean up SSH key 🚀
+        if: always()
+        run: rm -f ~/.ssh/id_rsa
