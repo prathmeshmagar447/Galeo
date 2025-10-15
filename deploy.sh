@@ -1,60 +1,71 @@
-#!/bin/bash
-set -e
+name: 🚀 Deploy to EC2
 
-APP_DIR="/home/ubuntu/app"
-SOCK_FILE="$APP_DIR/galeo.sock"
-VENV_DIR="$APP_DIR/venv"
-USER="ubuntu"
-GROUP="www-data"
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
-echo "📂 Navigating to app directory"
-cd $APP_DIR || exit
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
 
-# Ensure virtual environment exists
-if [ ! -d "$VENV_DIR" ]; then
-    echo "🛠️ Creating Python virtual environment"
-    python3 -m venv $VENV_DIR
-fi
+    steps:
+      - name: ✅ Checkout repository
+        uses: actions/checkout@v4
 
-echo "📦 Installing Python dependencies"
-$VENV_DIR/bin/pip install --upgrade pip
-$VENV_DIR/bin/pip install -r requirements.txt
+      - name: 🔑 Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-# Stop any existing Gunicorn processes
-echo "🛑 Stopping existing Gunicorn processes"
-sudo pkill gunicorn || true
-sudo rm -f $SOCK_FILE
+      - name: 🧩 Create .env file dynamically
+        run: |
+          cat <<EOF > .env
+ENV=${{ secrets.ENV }}
+EC2_USERNAME=${{ secrets.EC2_USERNAME }}
+OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+DATABASE_URL=${{ secrets.DATABASE_URL }}
+AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
+AWS_REGION=${{ secrets.AWS_REGION }}
+FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}
+EOF
 
-# Start Gunicorn
-echo "🚀 Starting Gunicorn"
-$VENV_DIR/bin/gunicorn --workers 3 --bind unix:$SOCK_FILE server:app --daemon
+      - name: 🚚 Sync files to EC2 (faster & safer)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          echo "⚡ Syncing files to EC2..."
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'venv' \
+            --exclude '__pycache__' \
+            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
+            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app
+          
+          echo "📦 Copying environment file..."
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no .env $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/env
 
-# Fix socket permissions so Nginx can access
-sudo chown $USER:$GROUP $SOCK_FILE
-sudo chmod 660 $SOCK_FILE
-sudo chmod 710 $APP_DIR
+      - name: 🚀 Run deploy script on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+        run: |
+          echo "🧠 Running remote deploy script..."
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "
+            set -e
+            cd /home/ubuntu/app
+            chmod +x deploy.sh
+            ./deploy.sh
+          "
 
-# Configure Nginx if not already configured
-NGINX_CONF="/etc/nginx/sites-available/galeo"
-if [ ! -f $NGINX_CONF ]; then
-    echo "🛠️ Configuring Nginx"
-    sudo rm -f /etc/nginx/sites-enabled/default
-    sudo bash -c "cat > $NGINX_CONF <<EOF
-server {
-    listen 80;
-    server_name _;
-
-    location / {
-        include proxy_params;
-        proxy_pass http://unix:$SOCK_FILE;
-    }
-}
-EOF"
-    sudo ln -sf $NGINX_CONF /etc/nginx/sites-enabled
-fi
-
-# Restart Nginx
-echo "🔁 Restarting Nginx"
-sudo systemctl restart nginx
-
-echo "✅ Deployment complete!"
+      - name: 🧹 Clean up SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_rsa
