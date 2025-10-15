@@ -1,60 +1,71 @@
-name: Deploy to EC2 🚀
+name: 🚀 Deploy to EC2
 
 on:
   push:
     branches:
-      - "main" # This triggers the workflow on push to any branch
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
+    name: Deploy to EC2
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout current branch ✅
-        uses: actions/checkout@v2
 
-      - name: Set up SSH key and whitelist EC2 IP address 🐻‍❄️
+    steps:
+      - name: ✅ Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔑 Set up SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Create .env file dynamically 🧨
-        env:
-          ENV: ${{ secrets.ENV }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
+      - name: 🧩 Create .env file dynamically
         run: |
-          echo "ENV=${ENV}" >> env
-          echo "EC2_USERNAME=${EC2_USERNAME}" >> env
-          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> env
-          echo "DATABASE_URL=${DATABASE_URL}" >> env
-          echo "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" >> env
-          echo "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" >> env
-          echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}" >> env
-          echo "AWS_REGION=${AWS_REGION}" >> env
-          echo "FLASK_SECRET_KEY=${FLASK_SECRET_KEY}" >> env
+          cat <<EOF > .env
+          ENV=${{ secrets.ENV }}
+          EC2_USERNAME=${{ secrets.EC2_USERNAME }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}
+          EOF
 
-      - name: Copy files to remote server 🚙
+      - name: 🚚 Sync files to EC2 (faster & safer)
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
-          scp -r * $EC2_USERNAME@$EC2_HOST:/home/ubuntu/
+          echo "⚡ Syncing files to EC2..."
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'venv' \
+            --exclude '__pycache__' \
+            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
+            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app
 
-      - name: Run Bash Script To Delpoy App 🚀
+          echo "📦 Copying environment file..."
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no .env $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/env
+
+      - name: 🚀 Run deploy script on EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
-          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "chmod +x ./deploy.sh && ./deploy.sh"
+          echo "🧠 Running remote deploy script..."
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "
+            set -e
+            cd /home/ubuntu/app
+            chmod +x deploy.sh
+            ./deploy.sh
+          "
 
-      - name: Clean up SSH key 🚀
+      - name: 🧹 Clean up SSH key
         if: always()
         run: rm -f ~/.ssh/id_rsa
