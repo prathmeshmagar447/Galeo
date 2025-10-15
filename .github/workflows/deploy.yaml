@@ -36,7 +36,7 @@ AWS_REGION=${{ secrets.AWS_REGION }}
 FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}
 EOF
 
-      - name: 🚚 Sync files to EC2 (faster & safer)
+      - name: 🚚 Sync files to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
@@ -48,8 +48,8 @@ EOF
             --exclude 'venv' \
             --exclude '__pycache__' \
             -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
-            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/
-
+            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app
+          
           echo "📦 Copying environment file..."
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no .env $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/env
 
