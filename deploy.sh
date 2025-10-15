@@ -1,71 +1,27 @@
-name: 🚀 Deploy to EC2
+#!/bin/bash
+set -e
 
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+APP_DIR="/home/ubuntu/app"
+SERVICE_NAME="galeo" # Your Gunicorn systemd service name
 
-jobs:
-  deploy:
-    name: Deploy to EC2
-    runs-on: ubuntu-latest
+echo "Navigating to application directory: $APP_DIR"
+cd $APP_DIR
 
-    steps:
-      - name: ✅ Checkout repository
-        uses: actions/checkout@v4
+echo "Pulling latest code from main branch..."
+git pull origin main
 
-      - name: 🔑 Set up SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+echo "Activating virtual environment and installing dependencies..."
+source venv/bin/activate
+pip install -r requirements.txt
 
-      - name: 🧩 Create .env file dynamically
-        run: |
-          cat <<EOF > .env
-ENV=${{ secrets.ENV }}
-EC2_USERNAME=${{ secrets.EC2_USERNAME }}
-OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-DATABASE_URL=${{ secrets.DATABASE_URL }}
-AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-AWS_S3_BUCKET=${{ secrets.AWS_S3_BUCKET }}
-AWS_REGION=${{ secrets.AWS_REGION }}
-FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}
-EOF
+echo "Copying .env file..."
+# Assuming the .env file is transferred to $APP_DIR/env by GitHub Actions
+cp env .env
 
-      - name: 🚚 Sync files to EC2 (faster & safer)
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-        run: |
-          echo "⚡ Syncing files to EC2..."
-          rsync -avz --delete \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude 'venv' \
-            --exclude '__pycache__' \
-            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
-            ./ $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app
-          
-          echo "📦 Copying environment file..."
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no .env $EC2_USERNAME@$EC2_HOST:/home/ubuntu/app/env
+echo "Restarting Gunicorn service: $SERVICE_NAME"
+sudo systemctl restart $SERVICE_NAME
 
-      - name: 🚀 Run deploy script on EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-        run: |
-          echo "🧠 Running remote deploy script..."
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "
-            set -e
-            cd /home/ubuntu/app
-            chmod +x deploy.sh
-            ./deploy.sh
-          "
+echo "Reloading Nginx..."
+sudo systemctl reload nginx
 
-      - name: 🧹 Clean up SSH key
-        if: always()
-        run: rm -f ~/.ssh/id_rsa
+echo "Deployment complete!"

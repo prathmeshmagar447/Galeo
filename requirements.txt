@@ -1,6 +1,6 @@
-flask
-flask_sqlalchemy
-boto3
+Flask
+Flask-SQLAlchemy
 python-dotenv
-werkzeug
+boto3
+Werkzeug
 gunicorn
