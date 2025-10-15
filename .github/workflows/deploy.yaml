@@ -57,7 +57,6 @@ EOF
           EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "
-            set -e
             cd /home/ubuntu/app
             chmod +x deploy.sh
             ./deploy.sh
