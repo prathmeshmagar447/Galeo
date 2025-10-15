@@ -1,79 +1,74 @@
 #!/bin/bash
-set -e
 
-APP_NAME="galeo"
 APP_DIR="/home/ubuntu/app"
-SOCKET="$APP_DIR/$APP_NAME.sock"
-SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
+SOCK_FILE="$APP_DIR/galeo.sock"
+VENV_DIR="$APP_DIR/venv"
+USER="ubuntu"
+GROUP="www-data"
 
-echo "🚀 Starting deployment..."
+echo "🗑️  Deleting old app files"
+sudo rm -rf $APP_DIR/*
 
-# --- Install system dependencies ---
-sudo apt-get update -y
-sudo apt-get install -y python3 python3-venv python3-pip nginx
+echo "📁 Creating app folder"
+sudo mkdir -p $APP_DIR
 
-# --- Navigate to app directory ---
-cd "$APP_DIR"
+echo "🚚 Moving files to app folder"
+sudo mv * $APP_DIR
 
-# --- Create virtual environment if missing ---
-if [ ! -d "venv" ]; then
-    echo "🧩 Creating virtual environment..."
-    python3 -m venv venv
-fi
+# Navigate to app directory
+cd $APP_DIR
 
-# --- Activate venv and install requirements ---
-echo "📦 Installing dependencies..."
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+echo "🔄 Moving env file"
+sudo mv env .env
 
-# --- Ensure .env exists ---
-if [ -f "env" ]; then
-    mv env .env
-fi
+echo "⚙️  Updating system and installing dependencies"
+sudo apt-get update
+sudo apt-get install -y python3 python3-pip nginx
 
-# --- Create or update Gunicorn systemd service ---
-echo "🧠 Creating/Updating Gunicorn systemd service..."
-sudo bash -c "cat > $SERVICE_FILE" <<EOF
-[Unit]
-Description=Gunicorn instance for $APP_NAME
-After=network.target
+# Install python packages
+echo "📦 Installing Python dependencies"
+sudo $VENV_DIR/bin/pip install -r requirements.txt
 
-[Service]
-User=ubuntu
-Group=www-data
-WorkingDirectory=$APP_DIR
-EnvironmentFile=$APP_DIR/.env
-ExecStart=$APP_DIR/venv/bin/gunicorn --workers 3 --bind unix:$SOCKET server:app
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# --- Enable and restart Gunicorn service ---
-sudo systemctl daemon-reload
-sudo systemctl enable $APP_NAME
-sudo systemctl restart $APP_NAME
-
-# --- Configure Nginx with correct socket ---
-echo "⚙️ Configuring Nginx..."
-sudo bash -c "cat > /etc/nginx/sites-available/$APP_NAME" <<EOF
+# Configure Nginx reverse proxy
+NGINX_CONF="/etc/nginx/sites-available/galeo"
+if [ ! -f $NGINX_CONF ]; then
+    echo "🛠️  Configuring Nginx"
+    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo bash -c "cat > $NGINX_CONF <<EOF
 server {
     listen 80;
     server_name _;
 
     location / {
         include proxy_params;
-        proxy_pass http://unix:$SOCKET;
+        proxy_pass http://unix:$SOCK_FILE;
     }
 }
-EOF
+EOF"
+    sudo ln -s $NGINX_CONF /etc/nginx/sites-enabled
+fi
 
-sudo ln -sf /etc/nginx/sites-available/$APP_NAME /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
+# Fix directory permissions for Nginx to access the socket
+echo "🔐 Fixing directory permissions"
+sudo chmod 710 /home/ubuntu
+sudo chmod 710 $APP_DIR
 
-# --- Test and reload Nginx ---
-sudo nginx -t
+# Stop any running Gunicorn instances
+echo "🛑 Stopping existing Gunicorn processes"
+sudo pkill gunicorn || true
+sudo rm -f $SOCK_FILE
+
+# Start Gunicorn
+echo "🚀 Starting Gunicorn"
+sudo $VENV_DIR/bin/gunicorn --workers 3 --bind unix:$SOCK_FILE server:app \
+     --user $USER --group $GROUP --daemon
+
+# Ensure socket permissions
+sudo chown $USER:$GROUP $SOCK_FILE
+sudo chmod 660 $SOCK_FILE
+
+# Restart Nginx
+echo "🔁 Restarting Nginx"
 sudo systemctl restart nginx
 
-echo "✅ Deployment complete! App is live at http://<your-ec2-ip>"
+echo "✅ Deployment complete! Your app should now be live."
