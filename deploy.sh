@@ -1,48 +1,63 @@
 #!/bin/bash
-set -e  # Stop on error
+set -e
 
 APP_NAME="galeo"
-APP_DIR="/var/www/$APP_NAME"
-ENV_FILE=".env"
+APP_DIR="/home/ubuntu/app"
+SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
 
-echo "🚀 Starting deployment of $APP_NAME"
+echo "🚀 Starting deployment..."
 
-# --- Cleanup old version ---
-if [ -d "$APP_DIR" ]; then
-    echo "🧹 Removing old app files..."
-    sudo rm -rf "$APP_DIR"
-fi
+# --- Install system dependencies ---
+sudo apt-get update -y
+sudo apt-get install -y python3 python3-venv python3-pip nginx
 
-# --- Create app directory ---
-echo "📁 Creating app folder..."
-sudo mkdir -p "$APP_DIR"
-sudo chown ubuntu:ubuntu "$APP_DIR"
-
-# --- Move files to app directory ---
-echo "📦 Moving files to app directory..."
-sudo cp -r ./* "$APP_DIR"
+# --- Ensure app directory exists ---
 cd "$APP_DIR"
 
-# --- Rename env file ---
+# --- Create virtual environment if missing ---
+if [ ! -d "venv" ]; then
+    echo "🧩 Creating virtual environment..."
+    python3 -m venv venv
+fi
+
+# --- Activate venv and install requirements ---
+echo "📦 Installing dependencies..."
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# --- Move env file into place if not renamed ---
 if [ -f "env" ]; then
     mv env .env
 fi
 
-# --- Install Python and dependencies ---
-echo "🐍 Setting up Python..."
-sudo apt-get update -y
-sudo apt-get install -y python3 python3-venv python3-pip
+# --- Create Gunicorn systemd service ---
+if [ ! -f "$SERVICE_FILE" ]; then
+    echo "🧠 Creating Gunicorn systemd service..."
+    sudo bash -c "cat > $SERVICE_FILE" <<EOF
+[Unit]
+Description=Gunicorn instance for $APP_NAME
+After=network.target
 
-# --- Create virtual environment ---
-echo "🧩 Creating virtual environment..."
-python3 -m venv venv
-source venv/bin/activate
+[Service]
+User=ubuntu
+Group=www-data
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$APP_DIR/.env
+ExecStart=$APP_DIR/venv/bin/gunicorn --workers 3 --bind unix:$APP_DIR/$APP_NAME.sock server:app
 
-echo "📦 Installing dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
 
-# --- Setup Nginx ---
+# --- Enable and restart service ---
+echo "♻️ Restarting Gunicorn..."
+sudo systemctl daemon-reload
+sudo systemctl enable $APP_NAME
+sudo systemctl restart $APP_NAME
+
+# --- Configure Nginx (only once) ---
 if [ ! -f /etc/nginx/sites-available/$APP_NAME ]; then
     echo "⚙️ Configuring Nginx..."
     sudo bash -c "cat > /etc/nginx/sites-available/$APP_NAME" <<EOF
@@ -56,20 +71,12 @@ server {
     }
 }
 EOF
-
     sudo ln -sf /etc/nginx/sites-available/$APP_NAME /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
 fi
 
+# --- Restart Nginx ---
 echo "🔁 Restarting Nginx..."
 sudo systemctl restart nginx
 
-# --- Restart Gunicorn ---
-echo "🔥 Starting Gunicorn..."
-sudo pkill gunicorn || true
-sudo rm -f $APP_DIR/$APP_NAME.sock
-
-sudo bash -c "cd $APP_DIR && source venv/bin/activate && \
-    gunicorn --workers 3 --bind unix:$APP_DIR/$APP_NAME.sock server:app \
-    --user www-data --group www-data --daemon"
-
-echo "✅ Deployment complete!"
+echo "✅ Deployment complete! App is live."
