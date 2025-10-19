@@ -1,6 +1,7 @@
 Flask
 Flask-SQLAlchemy
-python-dotenv
 boto3
-Werkzeug
+python-dotenv
+supabase
+itsdangerous
 gunicorn
