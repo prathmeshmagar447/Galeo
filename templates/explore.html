@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}My Gallery - GALEO{% endblock title %}
+{% block title %}Explore - GALEO{% endblock title %}
 
 {% block content %}
-  <h2 class="mb-4">My Image Gallery</h2>
+  <h2 class="mb-4">Explore Public Images</h2>
 
   <div class="image-grid">
     {% if images %}
@@ -13,17 +13,13 @@
           <a href="{{ img.filename }}" download="{{ img.title | default('image') }}.jpg" class="save-button">Save</a>
           <div class="image-info">
             <h6>{{ img.title }}</h6>
-            <a href="{{ url_for('edit', id=img.id) }}" class="btn btn-warning btn-sm">Edit</a>
-            <form action="{{ url_for('delete', id=img.id) }}" method="POST" style="display:inline;">
-              <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-            </form>
-          </div>
+            <p class="text-muted small">by {{ img.user.username or img.user.email }}</p>
           </div>
         </div>
       {% endfor %}
     {% else %}
       <div class="col-12 text-center">
-        <p>No images uploaded yet. <a href="{{ url_for('upload') }}">Upload one now!</a></p>
+        <p>No public images available yet.</p>
       </div>
     {% endif %}
   </div>

@@ -66,6 +66,7 @@ class Image(db.Model):
     title = db.Column(db.String(150))
     filename = db.Column(db.String(500))
     s3_key = db.Column(db.String(500))
+    is_public = db.Column(db.Boolean, default=False, nullable=False) # New field for public/private
     # store Supabase user id (string)
     user_id = db.Column(db.String(200), db.ForeignKey("user.supabase_id"))
 
@@ -105,8 +106,12 @@ def verify_token(access_token: str) -> bool:
 def get_current_user():
     """Return a lightweight user object from session or None"""
     if "user_id" in session:
-        return {"id": session.get("user_id"), "email": session.get("email")}
+        return {"id": session.get("user_id"), "email": session.get("email"), "username": session.get("username")}
     return None
+
+@app.context_processor
+def inject_current_user():
+    return dict(current_user=get_current_user())
 
 # ---------- S3 helpers ----------
 def upload_to_s3(file):
@@ -261,6 +266,12 @@ def index():
     current_year = datetime.now().year
     return render_template("index.html", images=images, current_year=current_year)
 
+@app.route("/explore")
+def explore():
+    images = Image.query.filter_by(is_public=True).all()
+    current_year = datetime.now().year
+    return render_template("explore.html", images=images, current_year=current_year)
+
 @app.route("/upload", methods=["GET", "POST"])
 @login_required
 def upload():
@@ -280,10 +291,12 @@ def upload():
                 flash("Unsupported file type", "warning")
                 return redirect(url_for("upload"))
 
+        is_public = request.form.get("is_public") == "on" # Checkbox value
+
         s3_url, s3_key = upload_to_s3(file)
         if s3_url:
             user = get_current_user()
-            img = Image(title=title, filename=s3_url, s3_key=s3_key, user_id=user["id"])
+            img = Image(title=title, filename=s3_url, s3_key=s3_key, user_id=user["id"], is_public=is_public)
             db.session.add(img)
             db.session.commit()
             flash("Image uploaded successfully!", "success")
@@ -302,8 +315,9 @@ def edit(id):
         abort(403)
     if request.method == "POST":
         img.title = request.form.get("title")
+        img.is_public = request.form.get("is_public") == "on"
         db.session.commit()
-        flash("Image title updated!", "success")
+        flash("Image updated successfully!", "success")
         return redirect(url_for("index"))
     current_year = datetime.now().year
     return render_template("edit.html", image=img, current_year=current_year)
