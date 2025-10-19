@@ -1,68 +1,57 @@
-name: Deploy to EC2 🚀
+# .github/workflows/deploy.yml
+name: Deploy Flask App to EC2
 
 on:
   push:
     branches:
-      - "main" # This triggers the workflow on push to any branch
+      - main
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout current branch ✅
-        uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up SSH key and whitelist EC2 IP address 🐻‍❄️
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Create .env file dynamically 🧨
-        env:
-          ENV: ${{ secrets.ENV }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          FLASK_SECRET_KEY: ${{ secrets.FLASK_SECRET_KEY }}
-        run: |
-          echo "ENV=${ENV}" > env
-          echo "EC2_USERNAME=${EC2_USERNAME}" >> env
-          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> env
-          echo "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" >> env
-          echo "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" >> env
-          echo "AWS_REGION=${AWS_REGION}" >> env
-          echo "AWS_S3_BUCKET=${AWS_S3_BUCKET}" >> env
-          echo "DATABASE_URL=${DATABASE_URL}" >> env
-          echo "EC2_HOST=${EC2_HOST}" >> env
-          echo "EC2_SSH_KEY=${EC2_SSH_KEY}" >> env
-          echo "FLASK_SECRET_KEY=${FLASK_SECRET_KEY}" >> env
-
-      - name: Copy files to remote server 🚙
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-        run: |
-          # Create a temporary directory on EC2 for deployment files
-          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "mkdir -p /tmp/github-action-repo"
-          # Copy all files from the GitHub Actions runner to the temporary directory on EC2
-          scp -r * $EC2_USERNAME@$EC2_HOST:/tmp/github-action-repo/
-
-      - name: Run Bash Script To Delpoy App 🚀
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
-        run: |
-          # SSH into EC2, navigate to the temporary directory, and execute deploy.sh
-          ssh -o StrictHostKeyChecking=no $EC2_USERNAME@$EC2_HOST "cd /tmp/github-action-repo && chmod +x ./deploy.sh && ./deploy.sh"
-
-      - name: Clean up SSH key 🚀
-        if: always()
-        run: rm -f ~/.ssh/id_rsa
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Navigate to the app directory
+            cd /path/to/your/app/directory
+            
+            # Pull the latest code
+            git pull origin main
+            
+            # Set up venv and install dependencies
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt
+            
+            # Dynamically create the .env file from GitHub Secrets
+            echo "FLASK_SECRET_KEY='${{ secrets.FLASK_SECRET_KEY }}'" > .env
+            echo "DATABASE_URL='${{ secrets.DATABASE_URL }}'" >> .env
+            echo "AWS_S3_BUCKET='${{ secrets.AWS_S3_BUCKET }}'" >> .env
+            echo "AWS_REGION='${{ secrets.AWS_REGION }}'" >> .env
+            echo "AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}'" >> .env
+            echo "AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}'" >> .env
+            
+            # Restart the app server to load the new environment
+            sudo systemctl restart myflaskapp
