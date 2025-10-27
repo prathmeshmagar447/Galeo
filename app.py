@@ -1,5 +1,6 @@
 import os
 import uuid
+import logging
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -11,6 +12,10 @@ import boto3
 
 # Supabase
 from supabase import create_client
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -61,7 +66,12 @@ class Image(db.Model):
 
 
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Failed to create database tables: {e}")
+        raise
 
 
 # ------------------ HELPERS ------------------
@@ -82,14 +92,18 @@ def get_current_user():
 
 
 def upload_to_s3(file):
-    filename = secure_filename(file.filename)
-    ext = os.path.splitext(filename)[1]
-    s3_key = f"uploads/{uuid.uuid4()}{ext}"
-    file.seek(0)
-    s3.upload_fileobj(file, S3_BUCKET, s3_key, ExtraArgs={"ACL": "public-read"})
-    url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
-    print(f"S3 Upload URL: {url}, S3 Key: {s3_key}") # Debug print
-    return url, s3_key
+    try:
+        filename = secure_filename(file.filename)
+        ext = os.path.splitext(filename)[1]
+        s3_key = f"uploads/{uuid.uuid4()}{ext}"
+        file.seek(0)
+        s3.upload_fileobj(file, S3_BUCKET, s3_key, ExtraArgs={"ACL": "public-read"})
+        url = f"https://{S3_BUCKET}.s3.{S3_REGION}.amazonaws.com/{s3_key}"
+        logger.info(f"S3 Upload successful: {s3_key}")
+        return url, s3_key
+    except Exception as e:
+        logger.error(f"S3 upload failed for {file.filename}: {e}")
+        raise Exception(f"Failed to upload file to S3: {str(e)}")
 
 
 # ------------------ CONTEXT PROCESSORS ------------------
@@ -111,14 +125,19 @@ def signup():
     if request.method == "POST":
         email = request.form["email"]
         password = request.form["password"]
-        result = supabase.auth.sign_up({"email": email, "password": password})
-        if result.user:
-            u = User(supabase_id=result.user.id, email=email)
-            db.session.add(u)
-            db.session.commit()
-            flash("Signup successful! Please log in.", "success")
-            return redirect(url_for("login"))
-        flash("Signup failed.", "danger")
+        try:
+            result = supabase.auth.sign_up({"email": email, "password": password})
+            if result.user:
+                u = User(supabase_id=result.user.id, email=email)
+                db.session.add(u)
+                db.session.commit()
+                logger.info(f"New user signed up: {email}")
+                flash("Signup successful! Please log in.", "success")
+                return redirect(url_for("login"))
+            flash("Signup failed.", "danger")
+        except Exception as e:
+            logger.error(f"Signup error for {email}: {e}")
+            flash("Signup failed. Please try again.", "danger")
     return render_template("signup.html")
 
 
@@ -173,19 +192,25 @@ def upload():
             return redirect(url_for("upload"))
 
         uploaded_count = 0
-        for i, file in enumerate(files):
-            if file and file.filename != "":
-                title = titles[i] if i < len(titles) and titles[i] else "Untitled" # Use provided title or default
-                url, s3_key = upload_to_s3(file)
-                img = Image(title=title, file_url=url, s3_key=s3_key, user_id=user["id"])
-                db.session.add(img)
-                uploaded_count += 1
-        
-        if uploaded_count > 0:
-            db.session.commit()
-            flash(f"{uploaded_count} image(s) uploaded!", "success")
-        else:
-            flash("No valid images to upload.", "warning")
+        try:
+            for i, file in enumerate(files):
+                if file and file.filename != "":
+                    title = titles[i] if i < len(titles) and titles[i] else "Untitled" # Use provided title or default
+                    url, s3_key = upload_to_s3(file)
+                    img = Image(title=title, file_url=url, s3_key=s3_key, user_id=user["id"])
+                    db.session.add(img)
+                    uploaded_count += 1
+
+            if uploaded_count > 0:
+                db.session.commit()
+                logger.info(f"User {user['email']} uploaded {uploaded_count} images")
+                flash(f"{uploaded_count} image(s) uploaded!", "success")
+            else:
+                flash("No valid images to upload.", "warning")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Upload failed for user {user['email']}: {e}")
+            flash("Upload failed. Please try again.", "danger")
 
         return redirect(url_for("gallery"))
     return render_template("upload.html")
@@ -204,33 +229,50 @@ def debug_gallery():
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
-    img = Image.query.get_or_404(id)
-    user = get_current_user()
-    if img.user_id != user["id"]:
-        flash("Not allowed.", "danger")
+    try:
+        img = Image.query.get_or_404(id)
+        user = get_current_user()
+        if img.user_id != user["id"]:
+            flash("Not allowed.", "danger")
+            return redirect(url_for("gallery"))
+        if request.method == "POST":
+            new_title = request.form["title"]
+            img.title = new_title
+            db.session.commit()
+            logger.info(f"User {user['email']} updated image {id} title")
+            flash("Image title updated.", "success")
+            return redirect(url_for("gallery"))
+        return render_template("edit.html", image=img)
+    except Exception as e:
+        logger.error(f"Edit failed for image {id}: {e}")
+        db.session.rollback()
+        flash("Failed to update image. Please try again.", "danger")
         return redirect(url_for("gallery"))
-    if request.method == "POST":
-        new_title = request.form["title"]
-        img.title = new_title
-        db.session.commit()
-        flash("Image title updated.", "success")
-        return redirect(url_for("gallery"))
-    return render_template("edit.html", image=img)
 
 
 @app.route("/delete/<int:id>", methods=["POST"])
 @login_required
 def delete(id):
-    img = Image.query.get_or_404(id)
-    user = get_current_user()
-    if img.user_id != user["id"]:
-        flash("Not allowed.", "danger")
+    try:
+        img = Image.query.get_or_404(id)
+        user = get_current_user()
+        if img.user_id != user["id"]:
+            flash("Not allowed.", "danger")
+            return redirect(url_for("gallery"))
+
+        # Delete from S3
+        s3.delete_object(Bucket=S3_BUCKET, Key=img.s3_key)
+        # Delete from database
+        db.session.delete(img)
+        db.session.commit()
+        logger.info(f"User {user['email']} deleted image {id}")
+        flash("Deleted.", "info")
         return redirect(url_for("gallery"))
-    s3.delete_object(Bucket=S3_BUCKET, Key=img.s3_key)
-    db.session.delete(img)
-    db.session.commit()
-    flash("Deleted.", "info")
-    return redirect(url_for("gallery"))
+    except Exception as e:
+        logger.error(f"Delete failed for image {id}: {e}")
+        db.session.rollback()
+        flash("Failed to delete image. Please try again.", "danger")
+        return redirect(url_for("gallery"))
 
 
 if __name__ == "__main__":
