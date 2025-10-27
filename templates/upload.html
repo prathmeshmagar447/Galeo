@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-screen-minus-nav-footer px-4">
+    <div class="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-2xl border border-gray-700">
+        <h2 class="text-4xl font-bold text-center text-blue-400 mb-8">Upload Images</h2>
+
+        <!-- Progress indicator -->
+        <div class="mb-6">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm text-gray-300">Upload Progress</span>
+                <span class="text-sm text-gray-300" id="progress-text">0%</span>
+            </div>
+            <div class="w-full bg-gray-700 rounded-full h-2">
+                <div class="bg-blue-500 h-2 rounded-full transition-all duration-300" id="progress-bar" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Drag and drop area -->
+        <div class="mb-6">
+            <div id="drop-zone" class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center transition-all duration-300 hover:border-blue-500 hover:bg-gray-750 cursor-pointer">
+                <div class="flex flex-col items-center">
+                    <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-xl text-gray-300 mb-2">Drag & drop images here</p>
+                    <p class="text-sm text-gray-500 mb-4">or click to browse</p>
+                    <button type="button" id="file-select-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition duration-300">
+                        Choose Files
+                    </button>
+                    <input type="file" id="file-input" name="files" multiple accept="image/*" class="hidden">
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected files preview -->
+        <div id="file-list" class="mb-6 hidden">
+            <h3 class="text-lg font-semibold text-gray-300 mb-4">Selected Images</h3>
+            <div id="preview-container" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+        </div>
+
+        <!-- Optional title field -->
+        <div class="mb-6">
+            <label for="title" class="block text-gray-300 text-sm font-semibold mb-2">Album Title (Optional)</label>
+            <input type="text" id="title" name="title" placeholder="Give your upload a title..."
+                   class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-400 transition duration-300">
+        </div>
+
+        <!-- Upload button -->
+        <button type="submit" id="upload-btn" disabled
+                class="w-full bg-gray-600 text-gray-400 font-bold py-3 px-4 rounded-lg cursor-not-allowed transition duration-300">
+            Select Images to Upload
+        </button>
+
+        <!-- Hidden form for submission -->
+        <form id="upload-form" action="/upload" method="POST" enctype="multipart/form-data" class="hidden">
+        </form>
+    </div>
+</div>
+
+<script>
+// Drag and drop functionality
+let selectedFiles = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const fileSelectBtn = document.getElementById('file-select-btn');
+    const fileList = document.getElementById('file-list');
+    const previewContainer = document.getElementById('preview-container');
+    const uploadBtn = document.getElementById('upload-btn');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const titleInput = document.getElementById('title');
+    const uploadForm = document.getElementById('upload-form');
+    const hiddenFiles = document.getElementById('hidden-files');
+    const hiddenTitle = document.getElementById('hidden-title');
+
+    // Drag and drop events
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+
+    function highlight(e) {
+        dropZone.classList.add('border-blue-500', 'bg-gray-750');
+    }
+
+    function unhighlight(e) {
+        dropZone.classList.remove('border-blue-500', 'bg-gray-750');
+    }
+
+    dropZone.addEventListener('drop', handleDrop, false);
+    fileSelectBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = [...dt.files];
+        handleFiles(files);
+    }
+
+    function handleFileSelect(e) {
+        const files = [...e.target.files];
+        handleFiles(files);
+    }
+
+    function handleFiles(files) {
+        files.forEach(file => {
+            if (file.type.startsWith('image/')) {
+                selectedFiles.push(file);
+            }
+        });
+        updateFileList();
+    }
+
+    function updateFileList() {
+        previewContainer.innerHTML = '';
+        if (selectedFiles.length > 0) {
+            fileList.classList.remove('hidden');
+            uploadBtn.disabled = false;
+            uploadBtn.className = 'w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition duration-300';
+            uploadBtn.textContent = `Upload ${selectedFiles.length} Image${selectedFiles.length > 1 ? 's' : ''}`;
+
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const previewDiv = document.createElement('div');
+                    previewDiv.className = 'relative bg-gray-700 rounded-lg overflow-hidden';
+                    previewDiv.innerHTML = `
+                        <img src="${e.target.result}" alt="${file.name}" class="w-full h-32 object-cover">
+                        <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
+                            <button type="button" class="text-white text-xl hover:text-red-500" onclick="removeFile(${index})">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 p-2">
+                            <p class="text-xs text-white truncate">${file.name}</p>
+                        </div>
+                    `;
+                    previewContainer.appendChild(previewDiv);
+                };
+                reader.readAsDataURL(file);
+            });
+        } else {
+            fileList.classList.add('hidden');
+            uploadBtn.disabled = true;
+            uploadBtn.className = 'w-full bg-gray-600 text-gray-400 font-bold py-3 px-4 rounded-lg cursor-not-allowed transition duration-300';
+            uploadBtn.textContent = 'Select Images to Upload';
+        }
+    }
+
+    window.removeFile = function(index) {
+        selectedFiles.splice(index, 1);
+        updateFileList();
+    };
+
+    uploadBtn.addEventListener('click', function() {
+        if (selectedFiles.length === 0) return;
+
+        // Create FormData and append files
+        const formData = new FormData();
+        selectedFiles.forEach(file => {
+            formData.append('files', file);
+        });
+        formData.append('title', titleInput.value);
+
+        // Show progress and submit
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+                // Submit using fetch to handle the upload
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                }).then(response => {
+                    if (response.ok) {
+                        window.location.href = '/';
+                    } else {
+                        alert('Upload failed. Please try again.');
+                    }
+                }).catch(error => {
+                    console.error('Upload error:', error);
+                    alert('Upload failed. Please try again.');
+                });
+            }
+            progressBar.style.width = progress + '%';
+            progressText.textContent = Math.round(progress) + '%';
+        }, 200);
+    });
+});
+</script>
+{% endblock %}

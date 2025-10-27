@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galeo</title>
+    <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748; /* bg-gray-800 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4a5568; /* bg-gray-700 */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; /* bg-gray-600 */
+        }
+        /* Custom height for content area, accounting for nav and footer */
+        .min-h-screen-minus-nav-footer {
+            min-height: calc(100vh - 64px - 64px); /* Adjust 64px based on actual nav/footer height */
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
+    <nav class="header-glass p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center">
+                <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Galeo Logo" class="h-10 w-10 mr-3">
+                <a href="/" class="text-2xl font-bold text-blue-400 hover:text-blue-300 transition duration-300">Galeo</a>
+            </div>
+            <div class="space-x-4">
+                {% if current_user %}
+                    <a href="/upload" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Upload</a>
+                    <a href="/logout" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Logout</a>
+                {% else %}
+                    <a href="/login" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Login</a>
+                    <a href="/signup" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300">Sign Up</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto mt-8 p-4 flex-grow max-w-full">
+        {% block content %}{% endblock %}
+    </main>
+
+
+    <footer class="bg-gray-800 p-4 text-center text-gray-400 mt-8 shadow-inner">
+        <p>&copy; 2025 Galeo</p>
+    </footer>
+
+</body>
+</html>
