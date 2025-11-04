@@ -3,7 +3,7 @@ name: Deploy to EC2 🚀
 on:
   push:
     branches:
-      - "main"   # change if main branch name differs
+      - main   # change if your branch name is different
 
 jobs:
   deploy:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Create .env File from GitHub Secrets
+      - name: Generate .env file from GitHub Secrets 🔐
         run: |
           echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
           echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
@@ -25,21 +25,23 @@ jobs:
           echo "PERMANENT_SESSION_LIFETIME_MINUTES=30" >> .env
           echo "FLASK_SECRET_KEY=${{ secrets.FLASK_SECRET_KEY }}" >> .env
 
-      - name: Configure SSH Key
+      - name: Configure SSH 🔐
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Upload Files to EC2 via rsync
+      - name: Upload Code to EC2 via rsync 📦
         run: |
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no" ./ ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ubuntu/Galeo-temp/
+          rsync -avz --exclude="venv" --exclude=".git" --exclude=".github" \
+          -e "ssh -o StrictHostKeyChecking=no" \
+          ./ ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/ubuntu/Galeo/
 
-      - name: Run Deployment Script on Server
+      - name: Run Deploy Script on Server 🚀
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} "
-            cd /home/ubuntu/Galeo-temp &&
+            cd /home/ubuntu/Galeo &&
             chmod +x deploy.sh &&
             ./deploy.sh
           "

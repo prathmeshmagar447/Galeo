@@ -4,34 +4,30 @@ set -e
 APP_DIR="/home/ubuntu/Galeo"
 SERVICE_NAME="galeo"
 
-echo "🚀 Deploying Galeo App..."
+echo "🚀 Starting deployment..."
 
-# Ensure app directory exists
-if [ ! -d "$APP_DIR" ]; then
-  mkdir -p $APP_DIR
-fi
+# Ensure target directory exists
+mkdir -p $APP_DIR
 
-# Move project files into place
-rsync -av --exclude="venv" --exclude=".git" --exclude=".github" ./ $APP_DIR/
+echo "📦 Syncing updated code..."
+sudo rsync -av --delete --exclude="venv" --exclude=".git" ./ $APP_DIR/
 
-# Move .env if provided
+# Move .env to correct location
 if [ -f ".env" ]; then
-  mv .env $APP_DIR/.env
+  sudo mv .env $APP_DIR/.env
+  sudo chmod 600 $APP_DIR/.env
 fi
 
-# Install dependencies
-echo "📦 Installing dependencies..."
+echo "🐍 Installing dependencies..."
 cd $APP_DIR
 source venv/bin/activate
 pip install -r requirements.txt
 deactivate
 
-# Restart Gunicorn service
 echo "♻ Restarting Gunicorn..."
 sudo systemctl restart $SERVICE_NAME
 
-# Restart Nginx
 echo "🔁 Restarting Nginx..."
 sudo systemctl restart nginx
 
-echo "✅ Deployment Complete!"
+echo "✅ Deployment Finished Successfully!"
