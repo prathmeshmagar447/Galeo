@@ -12,9 +12,9 @@ mkdir -p $APP_DIR
 echo "📦 Syncing updated code..."
 sudo rsync -av --delete --exclude="venv" --exclude=".git" ./ $APP_DIR/
 
-# Move .env to correct location
-if [ -f ".env" ]; then
-  sudo mv .env $APP_DIR/.env
+# Ensure .env permissions are correct (do NOT move)
+if [ -f "$APP_DIR/.env" ]; then
+  echo "🔐 Setting .env permissions..."
   sudo chmod 600 $APP_DIR/.env
 fi
 
