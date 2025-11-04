@@ -216,16 +216,6 @@ def upload():
     return render_template("upload.html")
 
 
-@app.route("/debug-gallery")
-@login_required
-def debug_gallery():
-    user = get_current_user()
-    images = Image.query.filter_by(user_id=user["id"]).order_by(Image.created_at.desc()).all()
-    for img in images:
-        print(f"Debug Gallery - Image Title: {img.title}, File URL: {img.file_url}")
-    return render_template("gallery.html", images=images)
-
-
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
 @login_required
 def edit(id):
@@ -276,4 +266,4 @@ def delete(id):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+    app.run()
