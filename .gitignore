@@ -1,22 +1,174 @@
-# Byte-code files
-*.pyc
+# Byte-compiled / optimized / DLL files
 __pycache__/
+*.py[cod]
+*$py.class
 
-# Virtual environment
-.venv/
+# C extensions
+*.so
+*.DS_Store
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
 env/
 venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Editor/IDE files
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# IDEs
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Environment variables
-.env
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Database files
 *.db
-instance/
+*.sqlite
+*.sqlite3
 
+# CLIP model cache (if downloaded locally)
+.clip/
+models/
+checkpoints/
 
-.DS_Store
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+temp/
+
+# Logs
+*.log
+logs/
+<environment_details>
+# Visual Studio Code Visible Files
+.gitignore
+
+# Visual Studio Code Open Tabs
+requirements.txt
+app.py
+templates/gallery.html
+templates/base.html
+instance/gallery.db
+.gitignore
+
+# Recently Modified Files
+These files have been modified since you last accessed them (file was just edited so you may need to re-read it before editing):
+.gitignore
+
+# Current Time
+11/10/2025, 12:50:35 PM (Asia/Calcutta, UTC+5.5:00)
+
+# Context Window Usage
+110,491 / 256K tokens used (43%)
+
+# Current Mode
+ACT MODE
